@@ -1,0 +1,114 @@
+---
+title: "Regex"
+author: "Upal Chowdhury"
+date: "September 18, 2016"
+output: html_document
+---
+
+# 3
+
+```{r eval = T}
+library(formatR)
+library(stringr)
+
+raw.data <- "555-1239Moe Szyslak(636) 555-0113Burns, C. Montgomery555-6542Rev. Timothy Lovejoy555 8904Ned Flanders636-555-3226Simpson, Homer5553642Dr. Julius Hibbert"
+
+name <- unlist(str_extract_all(raw.data,"[[:alpha:]., ]{2,}"))
+
+```
+
+###(a)
+
+```{r eval = T}
+# Replacing all prefix
+  
+  name <- str_replace_all(name, pattern = "[[:alpha:]]+\\.","")
+# rearranging name 
+  for (i in 1:length(name)){
+    if(str_detect(name[i], ",") == TRUE) {
+      name.split=unlist(str_split(name[i], ","))
+      name[i]=str_c(name.split[2], " ", name.split[1])
+    }
+  }
+# Splitting based on firstname and last name
+ 
+  first_name <- str_extract(name, "[[:alpha:]+]{2,}")
+  last_name <- str_extract(name, "(\\w+)$")
+  finalname <- data.frame(cbind(first_name,last_name))
+  finalname
+  
+
+```
+###(b)
+```{r eval = T }
+raw.data <- "555-1239Moe Szyslak(636) 555-0113Burns, C. Montgomery555-6542Rev. Timothy Lovejoy555 8904Ned Flanders636-555-3226Simpson, Homer5553642Dr. Julius Hibbert"
+
+name <- unlist(str_extract_all(raw.data,"[[:alpha:]., ]{2,}"))
+
+prefix.vector <- str_detect(name, "[[:alpha:]]{2,}[.]")
+
+dta <- data.frame(cbind(finalname,prefix.vector))
+dta
+```
+
+###(c)
+```{r eval = T}
+# if has second name
+
+attach(finalname)
+str_detect(finalname$last_name," ")
+```
+
+#4
+
+###(a) [0-9]+\\$
+```{r eval = T}
+vector <- c("123abc","$45","45$")
+
+unlist(str_extract_all(vector, "[0-9]+\\$"))
+```
+
+###(b) \\b[a-z]{1,4}\\b
+```{r eval = T}
+vector <- c("123abc","cbda","ABC","abcgsd")
+
+unlist(str_extract_all(vector, "\\b[a-z]{1,4}\\b"))
+```
+
+###(c) .*?\\.txt$
+```{r eval = T}
+vector <- c("123abc","cbda","ABC","abcgsd.txt","nbd.txt")
+unlist(str_extract_all(vector, ".*?\\.txt$"))
+```
+
+###(d) \\d{2}/\\d{2}/\\d{4}
+```{r eval = T}
+vector.d <- c("09/18/2016","34/45/334222","ABC","333/34/2")
+unlist(str_extract_all(vector.d, "\\d{2}/\\d{2}/\\d{4}"))
+```
+
+###(e) <(.+?)>.+?</\\1>
+```{r eval = T}
+vector.e <- c("<H1>foo</H1>","fdwefwe")
+unlist(str_extract_all(vector.e, "<(.+?)>.+?</\\1>"))
+```
+
+#9 Secret Code
+
+```{r eval = T}
+text <-
+  "clcopCow1zmstc0d87wnkig7OvdicpNuggvhryn92Gjuwczi8hqrfpRxs5Aj5dwpn0Tanwo
+Uwisdij7Lj8kpf03AT5Idr3coc0bt7yczjatOaootj55t3Nj3ne6c4Sfek.r1w1YwwojigO
+d6vrfUrbz2.2bkAnbhzgv4R9i05zEcrop.wAgnb.SqoU65fPa1otfb7wEm24k6t3sR9zqe5
+fy89n6Nd5t9kc4fE905gmc4Rgxo5nhDk!gr"
+
+
+#unlist(str_extract_all(text, "[[:lower:].]{1,}"))
+#unlist(str_extract_all(text, "[[:digit:].]{1,}"))
+
+new <- unlist(str_extract_all(text, "[[:upper:].]{1,}"))
+concat <- cat(str_c(new,collapse = ""))
+```
+
+
+
