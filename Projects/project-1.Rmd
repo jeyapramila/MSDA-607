@@ -1,0 +1,154 @@
+---
+title: "Text Minning in R"
+author: "Upal Chowdhury"
+date: "September 22, 2016"
+output: html_document
+---
+#Getting Unstructured Data and loading necessary library
+```{r v}
+library(readr)
+library(stringr)
+library(knitr)
+library(RCurl)
+data <- data.frame(read_csv("C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/MSDA-607/tournamentinfo.txt", skip = 3))
+head(data)
+```
+##Extracting player name
+```{r eval = T}
+name <- unlist(str_extract_all(data,"\\| [[:upper:]- ]{4,} \\|"))
+name <- str_replace_all(name,"(\\| )|([[:space:]]{1,}\\|)","")
+head(name)
+```
+##Reading data again with different reader for extracting state using regular expression
+```{r eval = T}
+data <- read.table("C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/MSDA-607/tournamentinfo.txt",header = FALSE,sep = ",",skip = 4,stringsAsFactors = F)
+#extracting
+state <- unlist(str_extract_all(data, "[[:upper:]]{2}[[:space:]]\\|"))
+#replacing symbols, spaces with empty string
+state <- str_replace_all(state,"[[:space:]]{1,}\\|", "")
+head(state)
+tail(state)
+```
+
+
+#Checking if same length was extracted for this two variable by creating a df
+```{r eval = T}
+name_and_state <- data.frame(cbind(name,state))
+head(name_and_state)
+```
+
+#Extracting  players point
+```{r eval = T}
+point <- unlist(str_extract_all(data,"\\|[[:digit:].[:digit:]]{3}[[:space:]]{1,}\\|"))
+point <- str_replace_all(point,"(\\|)|([[:space:]]{1,}\\|)","")
+name_and_state_points <- data.frame(cbind(name,state,point))
+head(name_and_state_points)
+```
+
+# Extracting Player's Pre-Rating
+```{r eval = T}
+pre_rating <- unlist(str_extract_all(data, "[:] [[:alnum:] ]{2,9}\\-\\>"))
+pre_rating <- str_replace_all(pre_rating,"(\\: )|([[:space:]]{1,}\\-\\>)","")
+#since some of the extracted rating has alpha attached , need to be removed and converting to numeric
+pre_rating <- as.numeric(str_replace_all(pre_rating,"([A-Z][[:digit:]]{1,2})|(\\-\\>)",""))
+tail(pre_rating,7)
+```
+
+#  Average Pre Chess Rating of Opponents
+
+## *For this last column it was found convenient to use read.table reader with additional parametere*
+```{r eval = T}
+newdata <-
+  read.table(
+  "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/MSDA-607/tournamentinfo.txt",
+  header = FALSE,
+  sep = "|",
+  skip = 4,
+  stringsAsFactors = FALSE,
+  fill = TRUE
+  )
+str(newdata)
+tail(newdata,3)
+```
+
+#Creating round 1 to round 7 vector of opponents in order use them in calculating Average Pre Chess Rating of Opponents
+```{r eval = T}
+R1 <- (str_extract(newdata$V4[c(TRUE, FALSE, FALSE)], "\\d+"))
+R2 <- (str_extract(newdata$V5[c(TRUE, FALSE, FALSE)], "\\d+"))
+R3 <- (str_extract(newdata$V6[c(TRUE, FALSE, FALSE)], "\\d+"))
+R4 <- (str_extract(newdata$V7[c(TRUE, FALSE, FALSE)], "\\d+"))
+R5 <-  (str_extract(newdata$V8[c(TRUE, FALSE, FALSE)], "\\d+")) 
+R6 <-  (str_extract(newdata$V9[c(TRUE, FALSE, FALSE)], "\\d+"))
+R7 <-  (str_extract(newdata$V10[c(TRUE, FALSE, FALSE)], "\\d+"))
+```
+
+# Creating data frame with new variables
+```{r eval = T}
+df <- data.frame(cbind(name,state,point,pre_rating,R1,R2,R3,R4,R5,R6,R7))
+head(df)
+str(df)
+```
+
+#adding player number to indexing the pre_rating of opponents
+```{r eval = T}
+player_num <- unlist(str_extract_all(data, "\\d{1,2}\\s\\|"))
+player_num <- str_replace_all(player_num,"(\\s\\|)","")
+player_num <- as.numeric(player_num)
+head(player_num)
+```
+
+
+```{r eval = T}
+df <- data.frame(cbind(player_num,name,state,point,pre_rating,R1,R2,R3,R4,R5,R6,R7),stringsAsFactors = FALSE)
+attach(df)
+```
+
+#looping through each row of the data frame in order to replace the opponent id with their respective pre_rating score
+```{r eval = T}
+for (i in 1:nrow(df)){
+        df$R1[i] <- df$pre_rating[as.numeric(df$R1[i])]
+        df$R2[i] <- df$pre_rating[as.numeric(df$R2[i])]
+        df$R3[i] <- df$pre_rating[as.numeric(df$R3[i])]
+        df$R4[i] <- df$pre_rating[as.numeric(df$R4[i])]
+        df$R5[i] <- df$pre_rating[as.numeric(df$R5[i])]
+        df$R6[i] <- df$pre_rating[as.numeric(df$R6[i])]
+        df$R7[i] <- df$pre_rating[as.numeric(df$R7[i])]
+  
+}
+```
+
+# Converting again to numeric variable in order for it to work(without it wasnot working)
+```{r eval = T}
+df$R1 <- as.numeric(df$R1)
+df$R2 <- as.numeric(df$R2)
+df$R3 <- as.numeric(df$R3)
+df$R4 <- as.numeric(df$R4)
+df$R5 <- as.numeric(df$R5)
+df$R6 <- as.numeric(df$R6)
+df$R7 <- as.numeric(df$R7)
+```
+
+#Creating new variable and calculating mean to populate opponent avg score
+```{r eval = T}
+
+df["oppoAvg"]<- numeric(64)
+
+for (i in 1:nrow(df)) {
+  df$oppoAvg[i] <- round(rowMeans(df[i,6:12],na.rm=T))
+}
+```
+
+#Creating final data frame with only required variables and outputing to a CSV file
+```{r eval = T}
+df <- df[,c(2,3,4,5,13)]
+kable(df, digits = getOption("digits"), caption = "Final Table", escape = TRUE)
+write.csv(df, file = "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/MSDA-607/tournamentinfo.csv")
+```
+
+
+
+
+
+
+
+
