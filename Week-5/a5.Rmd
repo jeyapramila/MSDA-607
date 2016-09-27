@@ -1,0 +1,60 @@
+---
+title: "Tidying and Transforming data"
+author: "Upal Chowdhury"
+date: "September 26, 2016"
+output: html_document
+---
+
+# Loading libraries and Importing data 
+```{r echo = T}
+library(readr)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(plotly)
+data <- read_csv("C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/MSDA-607/mdata.csv")
+```
+# Fill out the NA columns with proper name
+```{r}
+glimpse(data)
+names(data)[1:2] <- c("airlinename","Arrival_status")
+data <- data[-3,] 
+data[2,1] <- "Alaska"
+data[4,1]<- "AM West"
+data
+```
+# Tidying data using gather() and spread()
+```{r}
+tidy_data <- gather(data, arrival_city,count, LA:SE) %>% 
+                      arrange(airlinename)
+tidy_data <- spread(tidy_data,Arrival_status,count)
+tidy_data <- data.frame(tidy_data)
+names(tidy_data)[4]<- str_replace(names(tidy_data)[4],"[.]","")
+tidy_data
+attach(tidy_data)
+```
+# Using dplyr for analysis
+```{r}
+data_analysis <-tidy_data %>% 
+                group_by(airlinename,arrival_city)%>% 
+                summarise(percent_count=sum(delayed)*100/(sum(delayed)+sum(ontime)))
+data_analysis <- data.frame(data_analysis)
+data_analysis$percent_count<- round(data_analysis$percent_count,2)
+```
+# Visualizing the results
+```{r}
+g <- data_analysis%>% 
+ggplot( aes(x=arrival_city, y=percent_count, fill=airlinename)) +
+    geom_bar(stat="identity", position=position_dodge(width =0.7), colour="yellow") +
+    geom_text(aes(label=percent_count), vjust=-.5, hjust=0.5,position=     position_dodge(width=0.5),color="black") +
+        ggtitle("Comarison of delays by arrival citys and Airline ") +
+    xlab("arrival_city") + ylab("Percentage of Flights Delayed")
+     ggplotly(g)   
+```
+
+#**From the above graph it is clear that *AM West* flights delayed across all the citys**
+
+
+
+
+
