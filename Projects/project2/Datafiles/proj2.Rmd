@@ -1,0 +1,141 @@
+---
+title: "Tidy Data"
+author: "Upal Chowdhury"
+date: "September 27, 2016"
+output: 
+        html_document:
+          collapsed: TRUE
+          theme: cerulean  
+          highlight: tango  
+---
+```{r eval=T,message = FALSE}
+library(RCurl)
+library(data.table)
+library(plotly)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(xml2)
+library(rvest)
+library(RColorBrewer)
+library(reshape2)
+library(pander)
+library(XML) 
+library(RCurl)
+library(data.table)
+```
+
+#First dataset
+###https://github.com/uchow/MSDA-607/blob/master/Projects/project2/Datafiles/RatesDeaths_AllIndicators.csv
+####*Tidying this UNICEF datasets to identify Mortality based on country and type of death*
+```{r eval= T, message = FALSE}
+data1 <- read.csv("C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/data/cms/RatesDeaths_AllIndicators.csv", stringsAsFactors = F,header=T)
+#Replacing all the NAs to 0 so it can be aggregated
+data1[is.na(data1)] <- 0
+
+#Subsetting dataset based on Median and leaving the upper and lower bound
+df1 <- subset(data1,data1$Uncertainty.bounds.=="Median")
+
+df2 <- data.frame(df1)
+attach(df2)
+# Creating long format based on year
+d <- df2%>%gather(year,value,c(U5MR.1950:Neonatal.Deaths.2015))
+
+#Extarcting year from the typeof deth column so a new year column can be created
+d1 <- unlist(str_extract_all(d$year,"\\d{4}"))
+
+#Replacing the year as year is extarcted above
+final <- gsub("\\.([0-9]){4}","",as.character(d$year)) %>% data.frame(cbind(d,d1))
+
+#Changing column name to more meaningful name
+colnames(final)[1] <- "Type"
+colnames(final)[7] <- "Year"
+
+#Creating final tidy data set that is analysis ready
+final <- final%>%data.frame()%>%select(Type,CountryName,Year,value)%>%
+  group_by(Year)%>%arrange(desc(Year))
+pander(tail(final, n = 6))
+
+#calculating infant deaths based on country in year of 2000
+tope10_country <- subset(final,Type=="Infant.Deaths" & final$Year=="2000")%>%data.frame()%>%
+  arrange(desc(value))%>%top_n(10)
+
+pander(head(tope10_country, n = 10))
+```
+
+#Second dataset
+###https://raw.githubusercontent.com/uchow/MSDA-607/master/Projects/project2/Datafiles/USCensus.csv
+####*This Census data is cleaned up to see whats the population growth in Kentucky*
+```{r eval = T}
+data4 <- fread('https://www.census.gov/popest/data/intercensal/cities/files/SUB-EST00INT.csv')
+attach(data4)
+
+#Subsetting the that only includes information about Kentucky
+data_filter <- subset(data4,STNAME=="Kentucky")%>%
+  data.frame()%>%
+  select(STNAME,contains("POPESTIMATE"))%>%
+  gather(Year,Value,c(2:12))
+
+#Replacing all the aplpha character from the year column and changing to numeric
+data_filter$Year <- as.numeric(gsub("[[:alpha:]]+","",data_filter$Year))
+
+#Calculating percent rank and selecting top rows to incluce data from 2000-2010
+data_filter1 <- data_filter%>%arrange(desc(Value))%>%top_n(11)%>%arrange(Year)%>%
+  mutate(percrank=(rank(Value)/length(Value))*100)
+
+#Plotting to see the percentage change 
+g2 <- ggplot(data_filter1, aes(x = Year, y = percrank)) + geom_point() + geom_smooth(method="lm")+labs(x = "Year", y = "percentrank", title = "%increase (2000-2010)")
+
+ggplotly(g2 )
+
+```
+
+#Third dataset
+###https://github.com/uchow/MSDA-607/blob/master/Projects/project2/Datafiles/NHE2014.csv
+####*Tidying the dataset to see how medicare expense has increased over the years*
+```{r eval = T}
+data3 <- read.csv("C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/data/cms/NHE2014.csv", stringsAsFactors = F,header=T,skip = 1)
+
+#Tranposing the data to make rows to column
+data3 <- t(data3)
+
+#Extracting the year column, cleaning up then added back to the data frame
+colnames(data3)<- data3[1,]
+data3 <- data3[-1,]
+year <-  rownames(data3) 
+year <- data.frame (as.integer(str_replace_all(year,"X","")))
+dt <- cbind(year,data3)
+
+#Get rid of the unneceesary row that appeared to be a column
+rownames(dt) <- NULL
+
+#Changing columns to character type
+dt[] <- lapply(dt, as.character)
+
+#Replacing all the empty spaces in the column names
+cols <- str_replace_all(as.character(colnames(dt))," ","")
+colnames(dt) <- cols
+
+#Subsetting datasets only with Medicare
+dt_sub <- dt[,which(names(dt) == "Medicare")]
+
+#Creating the daat frame with year column and converting it to integer and subsetting only necessary columns
+dt_sub <- data.frame(cbind(dt_sub[],dt$as.integer.str_replace_all.year...X.......))
+dt_sub <- dt_sub[-c(1:6),]
+dt_sub$year <- as.integer(as.character(dt_sub$dt.as.integer.str_replace_all.year...X.......)) 
+dt_sub <- dt_sub[,-18]
+
+#Replacing "-" and "," from data frame
+dt_sub <- as.data.frame(lapply(dt_sub, function(x) gsub("-","0",x)))
+dt_sub <- as.data.frame(lapply(dt_sub, function(x) gsub(",","",x)))
+dt_sub <- data.frame(lapply(dt_sub, function(x) as.numeric(as.character(x))))
+dt_sub <- dt_sub[,-c(1,15)]
+
+#Creating new column by adding across the rows and selecting only year and total to see the change
+dd <- dt_sub%>%data.frame()%>%transform(dt_sub,total=rowSums(dt_sub[1:16]))%>%select(year,total)
+g <- ggplot(dd, aes(x = year, y = total)) + geom_point() + geom_smooth(method="lm") + 
+  labs(x = "Year", y = "Total Medicare spending", title = "Medicare Expenditure (1960-2014) ") + theme(plot.title = element_text(size=20, face="bold", vjust=2))
+ggplotly(g )
+
+
