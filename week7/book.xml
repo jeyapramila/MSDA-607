@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<books>
+    <book id="1">
+        <Title>The Little Engine That Could</Title>
+        <Authors>Watty Piper</Authors>
+		<Pages>100</Pages>
+        <Published_date>1930</Published_date>
+    </book>
+    <book id="2">
+        <Title>Think and Grow Rich</Title>
+        <Authors>Napoleon Hill</Authors>
+		<Pages>200</Pages>
+        <Published_date>1937</Published_date>
+    </book>
+    <book id="3">
+        <Title>The Art of Strategy</Title>
+        <Authors>R.L. Wing,Sun Tzu</Authors>
+		<Pages>200</Pages>
+        <Published_date>1988</Published_date>
+    </book>
+</books>

@@ -1,0 +1,46 @@
+---
+title: "XMLJSON"
+author: "Upal Chowdhury"
+date: "October 15, 2016"
+output: html_document
+---
+
+```{r,eval = T, message=FALSE}
+library(XML)
+library(RCurl)
+library(knitr)
+library(jsonlite)
+library(htmltab)
+```
+
+##Reading HTML doc
+```{r, eval = T}
+URL <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/MSDA-607/data/book.html"
+d1 <- htmltab(doc=URL,which=1)
+str(d1)
+kable(d1)
+```
+
+
+##Reading xml doc
+```{r}
+URL <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/MSDA-607/data/book.xml"
+d2 <- xmlTreeParse(URL)
+
+d2xmlnode <- xmlRoot(d2)
+d2xml <- xmlSApply(d2xmlnode, function(x) xmlSApply(x, xmlValue))
+xml_df <- data.frame(t(d2xml), row.names=NULL) 
+kable(xml_df)
+```
+
+##Reading json data
+```{r}
+URL <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/MSDA-607/data/book.json"
+json_df <- fromJSON(URL)
+kable(json_df)
+```
+
+#SOURCES
+###https://www.datacamp.com/community/tutorials/r-data-import-tutorial#gs.lt_GJ3Y
+
+###https://github.com/crubba/htmltab
