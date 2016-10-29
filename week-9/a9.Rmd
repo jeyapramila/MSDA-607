@@ -1,0 +1,29 @@
+---
+title: "A9"
+author: "Upal Chowdhury"
+date: "October 25, 2016"
+output: html_document
+---
+
+```{r}
+library(httr)
+library(jsonlite)
+library(bitops)
+library(RCurl)
+```
+
+## After obtaining the API key from https://developer.nytimes.com/top_stories_v2.json#/Console
+
+
+```{r, eval = T}
+url <- GET("http://api.nytimes.com/svc/topstories/v1/world.json?api-key=31d6cf34e6d14aac8ca9fe95afd981e7")
+http_status(url)
+contents <- content(url,encoding = "ISO-8859-1")
+m <- fromJSON(contents)
+attributes(m)
+
+df <- data.frame(do.call(rbind, m$results),stringsAsFactors = FALSE)
+knitr::kable(df)
+```
+
+
