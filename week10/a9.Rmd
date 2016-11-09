@@ -1,0 +1,152 @@
+---
+title: "A9"
+author: "Upal Chowdhury"
+date: "November 7, 2016"
+output: html_document
+---
+```{r, message= F}
+library(doParallel)
+library(plyr)
+library(tm)
+library(stringr)
+library(RWeka)
+library(RTextTools)
+library(doSNOW)
+```
+
+
+
+
+#Getting data and creating create corpus
+```{r}
+#Getting data
+spam.dir <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/data/spamham/spam_2/"
+spam.dir.files <- list.files(spam.dir)
+
+#Reading files 
+tmp <- readLines(str_c(spam.dir, spam.dir.files[1]))
+tmp <- str_c(tmp, collapse = "")
+corpus <- Corpus(VectorSource(tmp))
+meta(corpus[[1]], "classification") <- "spam"
+
+#Creating Corpus
+n <- 1
+cl <- makeCluster(8, type = "SOCK")
+registerDoSNOW(cl)
+for (i in 2:length(spam.dir.files)) {
+  tmp <- readLines(str_c(spam.dir, spam.dir.files[i]))
+  tmp <- str_c(tmp, collapse = "")
+  
+    n <- n + 1
+    tmp_corpus <- Corpus(VectorSource(tmp))
+    corpus <- c(corpus, tmp_corpus)
+    meta(corpus[[n]], "classification") <- "spam"
+}
+corpus
+```
+
+
+#reading ham data and merge with spam
+
+
+```{r}
+ham.dir <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/data/spamham/easy_ham/"
+ham.dir.files <- list.files(ham.dir)
+cl <- makeCluster(8, type = "SOCK")
+registerDoSNOW(cl)
+for (i in 1:length(ham.dir.files)) {
+  tmp <- readLines(str_c(ham.dir, ham.dir.files[i]))
+  tmp <- str_c(tmp, collapse = "")
+  
+ 
+    n <- n + 1
+    tmp_corpus <- Corpus(VectorSource(tmp))
+    corpus <- c(corpus, tmp_corpus)
+    meta(corpus[[n]], "classification") <- "ham"
+  
+}
+corpus
+```
+
+#Creating TDM
+
+```{r}
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, content_transformer(str_replace_all), pattern = "[[:punct:]]", replacement = " ")
+corpus <- tm_map(corpus, removeWords, words = stopwords("en"))
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, stemDocument)
+
+tdm <- TermDocumentMatrix(corpus)
+tdm <- removeSparseTerms(tdm, 1-(10/length(corpus)))
+tdm
+##
+BigramTokenizer <- function(x){
+  NGramTokenizer(x, Weka_control(min = 2, max = 2))}
+
+dtm <- DocumentTermMatrix(corpus)
+dtm <- removeSparseTerms(dtm, 1-(10/length(corpus)))
+```
+
+#Building model
+
+```{r}
+classification_labels <- unlist(meta(corpus, "classification"))
+N <- length(classification_labels)
+container <- create_container(dtm,
+                              labels = classification_labels,
+                              trainSize = 1:3000,
+                              testSize = 3001:n,
+                              virgin = FALSE)
+
+slotNames(container)
+svm_model <- train_model(container, "SVM")
+tree_model <- train_model(container, "TREE")
+maxent_model <- train_model(container, "MAXENT")
+
+svm_out <- classify_model(container, svm_model)
+tree_out <- classify_model(container, tree_model)
+maxent_out <- classify_model(container, maxent_model)
+
+head(svm_out)
+head(svm_out)
+head(maxent_out)
+
+```
+
+#Performance comparision
+```{r}
+labels_out <- data.frame(
+  correct_label = classification_labels[3001:N],
+  svm = as.character(svm_out[,1]),
+  tree = as.character(tree_out[,1]),
+  maxent = as.character(maxent_out[,1]),
+  stringAsFactors = F)
+
+
+#Converting all factors
+labels_out$svm <- as.character(labels_out$svm)
+labels_out$tree <- as.character(labels_out$tree)
+labels_out$maxent <- as.character(labels_out$maxent)
+#SVM Performance
+table(labels_out[,1] == labels_out[,2])
+#TREE Performance
+table(labels_out[,1] == labels_out[,3])
+#MAXENT Performance
+table(labels_out[,1] == labels_out[,4])
+```
+
+## MAXENT and SVM performs better than tree
+
+
+###**For this assignment Automated Data Collection (chapter 10) by Simon,Christian,Peterand Dominic is used extensively beleow is the link for this PDF book**
+
+
+
+#Sources
+##1. *Automated Data Collection,http://kek.ksu.ru/EOS/WM/AutDataCollectR.pdf*
+
+
+##2. *How to Build a Text Mining, Machine Learning Document Classification System in R!,https://www.youtube.com/watch?v=j1V2McKbkLo, Timothy DAuria*
+
+
