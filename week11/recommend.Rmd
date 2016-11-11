@@ -1,0 +1,13 @@
+---
+title: "AWS recommendation"
+author: "Upal Chowdhury"
+date: "November 10, 2016"
+output: html_document
+---
+
+#*https://aws.amazon.com/*
+
+The Dominant Cloud platform on the planet and can be think of as operating system of the internet has so many services to offer It would be a great idea to offer recommendation of the services  to its customers.
+such as one customer purchased an instance with very basic configuration offer them discount to upgrade or one compnay migrated to AURORA DB recommend them to use DMS (data movement service) for the CDC and full load data transfer from their legacy data center to the cloud
+
+
