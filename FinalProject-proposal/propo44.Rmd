@@ -1,0 +1,20 @@
+---
+title: "Final ProjectProposal"
+author: "Upal Chowdhury"
+date: "November 18, 2016"
+output: html_document
+---
+###*There is always a debate between which smart phone is more popular interms of features .Inorder to find  single model of smart phone and operating system for app development or investing on that particular company data analysis can be of use. To narrow this list down to one device, I will perform web sentiment analysis to gain insight into the attitudes toward the devices. In this project  I will first set up  the Amazon Web Services (AWS) computing environment. Next,I will use the AWS Elastic Map Reduce (EMR) platform to run a series of Hadoop Streaming jobs that will collect large amounts of smart phone-related web pages. A good amount of Text  from this web pages is already stored  Common Crawl repository. After collecting data matrix by running hadoop job i will scrape some other online resources such as customer reviews and/or twitter data . Then this data matrices will be merged to gather and weight will be applied to different features of the product.Finally i will conduct a sentiment analysis for two/three top phone brands and predict which one is most popular *
+
+#Work Flow
+```{r}
+library(jpeg)
+img <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/propo.jpg"
+img <- readJPEG(img,native = T)
+
+if(exists("rasterImage")){
+      plot(1:2, type='n')
+      rasterImage(img,1,1,2,2)
+}
+```
+
