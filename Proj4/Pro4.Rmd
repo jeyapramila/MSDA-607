@@ -1,0 +1,134 @@
+---
+title: "Proj4"
+author: "Upal Chowdhury"
+date: "November 18, 2016"
+output: html_document
+---
+
+#In this project
+###1.  I have chosen customer sales data from from mysqltrainning.org and loaded this data to AWS RDS cloud hosting.
+###2.  Installed mongoDB server and necessary packages
+###3.  Used R to export data from MySQL , then performed ETL then loaded to MongoDB
+
+
+```{r}
+library(RMongo)
+library(jsonlite)
+library(stringr)
+library(RMySQL)
+library(jpeg)
+```
+
+```{r}
+dbcon <- dbConnect(MySQL(),
+                 user = 'mygroup',
+                 password = 'mygroup#01',
+                 host = 'mygroup.c5rotlbjbl71.us-east-1.rds.amazonaws.com',
+                 dbname = 'classicmodels')
+```
+
+
+
+```{r,message=FALSE}
+Customer <- dbGetQuery(dbcon,"SELECT * FROM classicmodels.customers;")
+orderdetails <- dbGetQuery(dbcon,"SELECT * FROM classicmodels.orderdetails;")
+products <- dbGetQuery(dbcon,"SELECT * FROM classicmodels.products;")
+```
+
+#Starting the mongoDB server and mongo processess  
+
+```{r}
+img <- readJPEG("C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/mongo.jpg",native = T)
+
+if(exists("rasterImage")){
+      plot(1:2, type='n')
+      rasterImage(img,1,1,2,2)
+}
+```
+
+
+#connecting to a local mongodb server
+
+```{r}
+m <- mongoDbConnect("customerdata", "localhost", 27017)
+
+```
+
+
+
+
+
+# With RMongo I was able to load the data but not able issue dbGetQuery So eventually chose mongolite and successfully insert and query back data from mongodb server
+
+
+```{r}
+# 
+# for(i in 1:nrow(Customer)) {
+#   cust.json <- toJSON(Customer)
+#    cust.json<-sub("[","",cust.json, fixed = TRUE)
+#    cust.json<-sub("]","",cust.json, fixed = TRUE)
+#   cust.json<- as.character(cust.json)
+# }
+# 
+#  dbInsertDocument(mongo.conn, "customer", cust.json)
+# `
+# 
+# 
+# #loading products
+# ```{r}
+# for(i in 1:nrow(products)) {
+#   prod.json <- toJSON(products)
+#    prod.json<-sub("[","",prod.json, fixed = TRUE)
+#    prod.json<-sub("]","",prod.json, fixed = TRUE)
+#   prod.json<- as.character(prod.json)
+# }
+#  dbInsertDocument(mongo.conn, "products", prod.json)
+# 
+# 
+# 
+# ```{r}
+# for(i in 1:nrow(Customer)) {
+#   cust.json <- toJSON(Customer)
+#    cust.json<-sub("[","",cust.json, fixed = TRUE)
+#    cust.json<-sub("]","",cust.json, fixed = TRUE)
+#   cust.json<- as.character(cust.json)
+# }
+#  dbInsertDocument(mongo.conn, "orderdetails", cust.json)
+#  
+#  
+#  
+#  dbGetQuery(mongo.conn, "customer",{"customerName": "Atelier graphique"})
+
+```
+
+
+
+
+
+
+
+#Using Mongo Lite
+```{r}
+library("mongolite")
+
+m <- mongo(collection = "products")
+
+mn <- m$insert(Customer)
+str(mn)
+
+data <- m$find('{"creditLimit" : { "$lt" : 50000 } }')
+knitr::kable(head(data))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
