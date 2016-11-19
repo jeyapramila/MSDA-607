@@ -116,12 +116,17 @@ m <- mongo(collection = "products")
 mn <- m$insert(Customer)
 str(mn)
 
+#Querying customer who ahs credit limit less than 50000
 data <- m$find('{"creditLimit" : { "$lt" : 50000 } }')
 knitr::kable(head(data))
 
 ```
 
+#Difference between SQL and No-SQL database system 
 
+##One of the main advantage of NoSQL is that it has dynamic schema means the developer dont need to predefined schema, which saves the probelem of scaling where as in traditional RDBMS one must have predefined schema. It also does not need to have rigid data type which is a very fleixble as oppsed to RDBMS.Another option in NoSQL that is very useful for scaling is Sharding means data can be de=ivided into multiple read secondary nodes for performance boost and fault tolernace .
+
+##But one of the important technology is missing from NoSQL which id the lack of ACID property which menas it might not be a good option for transactional OLTP system.
 
 
 
