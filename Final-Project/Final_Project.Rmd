@@ -1,0 +1,285 @@
+---
+title: "finalP"
+author: "Upal Chowdhury"
+date: "November 26, 2016"
+html_document:
+          collapsed: TRUE
+          theme: cerulean  
+          highlight: tango  
+
+
+---
+
+Steps:	
+#0.	Identified valid segment of common crawl data in AWS s3, S3://aws-publicdatasets/common-crawl/parse-output/valid_segments.txt
+               *NOTE: Cyberduck was used for easy upload and downloading file in S3 bucket*
+```{r}
+library(jpeg)
+img <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/finalproj/s3folders.jpg"
+img <- readJPEG(img,native = T)
+
+if(exists("rasterImage")){
+      plot(1:2, type='n')
+      rasterImage(img,1,1,2,2)
+}
+```
+               
+               
+#1.	Deployed python script for MapReduce job. (github links for scripts)
+       **Github links for mapper reducer script** 
+       https://github.com/uchow/MSDA-607/upload/master/Final-Project
+       
+#2.	In AWS s3 bucket two folders name input and output is created and scripts deployed
+#3.	Created AWS account and downloaded AWS CLI for deploying Hadoop job using AWS EMR
+```{r}
+img <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/finalproj/runningJob.jpg"
+img <- readJPEG(img,native = T)
+
+if(exists("rasterImage")){
+      plot(1:2, type='n')
+      rasterImage(img,1,1,2,2)
+}
+```
+
+#4.	Since AWS CLI takes json file as configuration for running Hadoop job, JSON file was uses
+```{r}
+img <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/finalproj/AWSCLI.jpg"
+img <- readJPEG(img,native = T)
+
+if(exists("rasterImage")){
+      plot(1:2, type='n')
+      rasterImage(img,1,1,2,2)
+}
+```
+```
+
+#5.	After the Hadoop job finishes the output were gathered and concatenated with proper matrix header.
+```{r}
+```{r}
+library(jpeg)
+img <- "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/finalproj/output.jpg"
+img <- readJPEG(img,native = T)
+
+if(exists("rasterImage")){
+      plot(1:2, type='n')
+      rasterImage(img,1,1,2,2)
+}
+```
+
+#6.	Finally using R model was built to predict sentiment
+
+```{r,message=F}
+library(caret)
+library(corrplot)           
+library(doParallel)
+library(plyr)
+library(doSNOW)
+library(dplyr)
+library(pROC) 
+library(mlbench)
+library(knitr)
+library(randomForest)
+
+```
+
+
+
+
+
+
+#loading data
+
+```{r,eva=T}
+iphone_data <- read.csv("C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/finalproj/iphone_smallmatrix_labeled_8d.csv", stringsAsFactors = F)
+
+iphone_data$iphonesentiment <- as.factor(iphone_data$iphonesentiment)
+
+```
+
+#Findind nearzerovariance and removing it
+
+```{r, ,message = F, eval = T}
+nzv <- nearZeroVar(iphone_data, saveMetrics = TRUE)
+
+print(paste('Range:',range(nzv$percentUnique)))
+
+kable(head(nzv,7))
+      
+dim(nzv[nzv$percentUnique > 0.1,]);
+
+iphone_nzv <- as.data.frame(iphone_data[c(rownames(nzv[nzv$percentUnique >0.1,]))]);
+
+str(iphone_nzv)
+#dim(iphone_nzv)
+
+df <- cbind(as.data.frame(sapply(iphone_nzv,
+    as.numeric)),iphonesentiment=iphone_data$iphonesentiment);
+
+```
+###*We can see from the above using near zero variance we able reduced down to only 23 variables from 59*
+
+
+
+#Cross-Validation and modeling 
+```{r,message=FALSE}
+df$iphonesentiment <- as.factor(df$iphonesentiment)
+
+
+set.seed(1234)
+split <- sample(nrow(df), floor(0.5*nrow(df)))
+traindf <- df[split,]
+testdf <- df[-split,]
+
+
+
+control.m <-
+  trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 3,
+  classProbs = F,
+  savePredictions = T,
+  allowParallel = TRUE
+  )
+
+
+
+
+cl <- makeCluster(8, type = "SOCK")
+registerDoSNOW(cl)
+modelrf_full <-
+  train(
+  traindf$iphonesentiment~.,
+  data = traindf,
+  method =  "rf",
+  preProcess = c("center", "scale"),
+  trControl = control.m
+  )
+
+
+predictions.t <- predict(modelrf_full,testdf,type='raw')
+
+#predictions.f <- predict(modelrf_full,iphone_Large_matrix,type='raw')
+print(postResample(pred=predictions.t, obs=testdf$iphonesentiment))
+```
+
+#finding relevant attribute
+```{r}
+varImp(modelrf_full)
+
+vimp <- varImp(modelrf_full)
+results <- data.frame(row.names(vimp$importance),vimp$importance$Overall)
+results$VariableName <- rownames(vimp)
+colnames(results) <- c('VariableName','Weight')
+results <- results[order(results$Weight),]
+results$VariableName <- as.character(results$VariableName)
+                                     
+                                     
+                                     
+results_temp <- tail(results,20)
+par(mar=c(5,5,4,2))
+    
+    
+    
+ xx <- barplot(results_temp$Weight, width = 0.85,
+              main = paste("Variable Importance -",'iphonesentiment'), horiz = T,
+              xlab = "< (-) importance > < neutral > < importance (+) >", axes =FALSE,
+              col = ifelse((results_temp$Weight > 0), 'blue', 'red'))
+              axis(2, at=xx, labels=results_temp$VariableName, tick=FALSE, las=2, line=-0.3, cex.axis=0.6)
+xx
+```
+
+
+#Building model using high scoring attributes
+```{r}
+#traindf_truncated <- traindf[, c(results$VariableName[results$Weight > 12], 'iphonesentiment')]
+#head(traindf_truncated)
+#dim(traindf_truncated)
+#str(traindf_truncated)
+
+attach(df)
+str(df)
+newdf <-data.frame(iphone,iphonedisunc,iphonedisneg,iphoneperpos,iphonedispos,iphonecampos,iphonecamunc,iphoneperneg,iphoneperunc,iphonesentiment)
+
+str(newdf)
+
+
+
+
+set.seed(1234)
+split <- sample(nrow(newdf), floor(0.70*nrow(newdf)))
+traindf <- newdf[split,]
+testdf <- newdf[-split,]
+
+
+
+
+cl <- makeCluster(8, type = "SOCK")
+registerDoSNOW(cl)
+modelrf_full <-
+  train(
+  traindf$iphonesentiment~.,
+  data = traindf,
+  method =  "rf",
+  preProcess = c("center", "scale"),
+  trControl = control.m
+  )
+
+
+
+predictions.t <- predict(modelrf_full,testdf,type='raw')
+
+#predictions.f <- predict(modelrf_full,iphone_Large_matrix,type='raw')
+print(postResample(pred=predictions.t, obs=testdf$iphonesentiment))
+```
+
+
+
+
+#Applying model to large data set
+
+```{r}
+iphone_Large_matrix <- read.csv("C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-607/finalproj/Concatenated.csv", stringsAsFactors = F)
+
+detach(df)
+attach(iphone_Large_matrix)
+
+
+Ldf <- data.frame(iphone_Large_matrix[,colnames(newdf)])
+str(Ldf)
+
+
+
+
+
+predictions.f <- predict(modelrf_full,Ldf)
+iphonesentiment <- predictions.f
+str(predictions.f)
+final_data <- data.frame(cbind(Ldf,iphonesentiment))
+final_data <- final_data[,-10]
+str(final_data)
+write.csv(final_data,"C:/Users/upalchow/Desktop/UT_Austin_dataanlytics/DataAnalyticsUnderstandingCustomers2016/course_3/Newfolder/finaldata_iphone.csv")
+
+kable(tail(final_data,10))
+
+table(final_data$iphonesentiment.1)
+
+
+
+str(iphonesentiment)
+```
+
+
+
+
+#SOURCES
+## Python scripts were adpated and modified from UT-Austin data analytics certificate program
+##R-bloggers
+##docs.awsamazon.com
+
+
+
+
+
+
+
