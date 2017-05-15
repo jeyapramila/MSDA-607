@@ -1,0 +1,529 @@
+---
+title: "Proj-1"
+author: "Upal Chowdhury"
+date: "May 6, 2017"
+output: html_document
+---
+
+
+```{r,message=FALSE}
+library(RWeka)
+library(kernlab)
+library(caret)
+library(corrplot)			
+library(doParallel)
+library(doSNOW)
+library(plyr)        
+library(pROC)
+library(xgboost)
+library(formatR)
+library(Rmisc)
+library(pander)
+library(factoextra)
+library(dplyr)
+library(mice)
+library(missForest)
+library(knitr)
+library(VIM)
+library(SparseM)
+library(FactoMineR)
+library(e1071)
+library(RCurl)
+library(scales)
+library(cowplot)
+library(corrplot)
+library(MASS)
+library(mlbench)
+
+
+```
+
+##getting data 
+```{r}
+trainFull <- read.csv('C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-605/project/bostonH.csv',stringsAsFactors = F,header=T)
+
+train <- read.csv('C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-605/project/bostonH.csv',stringsAsFactors = F,header=T)
+
+num <- sapply(train,is.numeric)
+train <- train[,num]
+train <- as.data.frame(train[,-c(1)])
+
+
+#missing Value imputation
+mice_plot <- aggr(train, col=c('red','black'),
+                  numbers=TRUE, sortVars=TRUE,
+                  labels=names(train), cex.axis=.7,
+                  gap=1, ylab=c("Missing data","Pattern"))
+
+
+#we can see tha LotFrontage have many missing values.
+
+# Using mice package we can replace the Missing values 
+imp <- mice(train,m=37,maxit=50,method='pmm',seed=300)
+complete <- complete(imp,1)
+dim(complete)
+
+colSums(sapply(train, is.na))
+
+colSums(sapply(complete, is.na)) #All the missing values got replaced now we can run the model to see the variable imortant
+
+train <- as.data.frame(complete)
+
+
+head(train)
+dim(train)
+
+test<- read.csv('C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-605/project/test.csv',stringsAsFactors = F,header=T)
+dim(test)
+tes$SalePrice
+```
+
+
+#variable selection
+```{r}
+#variables with near zero variance
+nzv <- nearZeroVar(train, saveMetrics = TRUE)
+nzv<- nzv[order(-nzv$percentUnique),]
+print(paste('Range:',range(nzv$percentUnique)))
+kable(head(nzv,20))
+
+
+# Finding variable importance
+cl <- makeCluster(8, type = "SOCK")
+registerDoSNOW(cl)
+
+control.m <-
+  trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 3,
+  classProbs = F,
+  savePredictions = T,
+  allowParallel = TRUE
+  )
+
+modelRF <-train(
+  train$SalePrice ~ .,
+  data = train,
+  method = "rf",
+  importance=T,
+  trControl = control.m,
+  preProcess = c("center", "scale"),
+  tuneLength = 20)
+
+varImp(modelRF)
+
+```
+
+
+##Correlation
+```{r}
+Cordata <- cor(train)
+corrplot(Cordata, method="circle")
+
+```
+
+
+
+# X & Y 
+
+```{r}
+X <- train$GrLivArea
+Y <- train$SalePrice
+```
+
+
+##Probability
+```{r}
+summary(train$GrLivArea)
+skewness(train$GrLivArea)
+hist(train$GrLivArea,100)
+# we can see that GrLivArea is a right skewed variable
+
+```
+
+###Calculate the following Probabilities
+
+#a. $$P(X>x|Y>y)$$
+
+#b $$P(X>x,Y>y)$$
+
+#c $$P(X<x|Y>y)$$
+
+
+```{r}
+attach(train)
+#GrLivArea
+(xQ3 <- quantile(train$GrLivArea, 0.75))
+
+
+#SalePrice
+(yQ2 <- quantile(train$SalePrice, 0.5))
+
+
+
+numerator <- filter(train, train$SalePrice > yQ2 & train$GrLivArea > xQ3) %>% tally()/nrow(train)
+
+denominator <- filter(train, train$SalePrice > yQ2) %>% tally()/nrow(train)
+
+(a <- numerator/denominator)
+
+```
+
+#b $$P(X>x,Y>y)$$
+
+```{r}
+Xx <- filter(train, GrLivArea > xQ3) %>% tally()/nrow(train)
+Yy <- filter(train, SalePrice > yQ2) %>% tally()/nrow(train)
+
+(b <- Xx * Yy)
+```
+
+#c $$P(X<x|Y>y)$$
+```{r}
+numerator <- filter(train, SalePrice > yQ2 & GrLivArea < xQ3) %>% tally()/nrow(train)
+
+denominator <- filter(train, SalePrice > yQ2) %>% tally()/nrow(train)
+
+(c <- numerator/denominator)
+```
+
+### Creating Probability table
+```{r}
+r1.1 <- sum(train$SalePrice <=  yQ2 & train$GrLivArea <= xQ3)
+r1.2 <- sum( GrLivArea <= xQ3 & SalePrice > yQ2)
+r1.3 <- sum(r1.1 + r1.2)
+
+
+r2.1 <- sum(train$SalePrice <=  yQ2 & train$GrLivArea > xQ3)
+r2.2 <- sum( GrLivArea > xQ3 & SalePrice > yQ2)
+r2.3 <- sum(r2.1 +r2.2)
+
+
+#totals
+col1 <- r1.1+r2.1
+col2 <- r1.2+r2.2
+col3 <- col1+col2
+
+XY=c("leq_thirddquartile","gt_thirddquartile","Total")
+leq_sec_dquartile=c(r1.1,r1.2,r1.3)
+gt_sec_dquartile2=c(r2.1,r2.2,r2.3)
+Total=c(col1,col2,col3)
+
+datframe1 <- data.frame(XY,sec_dquartile,sec_dquartile2,Total=c(col1,col2,col3))
+kable(datframe1)
+
+
+
+```
+
+####Does P(A|B) = P(A)P(B)? Check mathematically:
+```{r}
+A <- r2.3  # all cases above 3d quartile of X
+B <- datframe1[3,2]  # all cases greater than median of Y
+
+PA <- A / datframe1[3,2] 
+PB <- B / datframe1[3,2] 
+
+(PA * PB == a )# comapring P(A|B) with P(A)P(B)
+
+#Chi-test
+chisq.test(X, Y)
+```
+
+**From above, we see that The p values is much less than 0.05 and $$ P(A|B) != P(A)P(B)$$ we can say X and Y are not independent and we can reject the null hypothesis of it being independent **
+
+#Descriptive Stats
+```{r}
+table(sapply(train, class))
+attach(train)
+# Important variables
+
+# GrLivArea     100.00
+# OverallQual    83.39
+# TotalBsmtSF    56.99
+# YearBuilt      56.08
+# X1stFlrSF      52.86
+# GarageCars     51.52
+# YearRemodAdd   47.09
+# MSSubClass     46.79
+# GarageArea     46.44
+#GarageCars
+#Fullbath
+#TotRmsAbvGrd
+#
+
+
+train_imp_var <- data.frame(GrLivArea,OverallQual,TotalBsmtSF,YearBuilt,X1stFlrSF,GarageCars,YearRemodAdd,MSSubClass,GarageArea,GarageCars,FullBath,TotRmsAbvGrd)
+
+means <- sapply(train_imp_var, function(y) mean(y, na.rm = TRUE))
+mins <- sapply(train_imp_var, function(y) min(y, na.rm=TRUE))
+medians <- sapply(train_imp_var, function(y) median(y, na.rm = TRUE))
+maxs <- sapply(train_imp_var, function(y) max(y, na.rm=TRUE))
+IQRs <- sapply(train_imp_var, function(y) IQR(y, na.rm = TRUE))
+SDs <- sapply(train_imp_var, function(y) sd(y, na.rm = T))
+skews <- sapply(train_imp_var, function(y) skewness(y, na.rm = TRUE))
+
+datasummary <- data.frame(means, mins, medians, maxs, IQRs, SDs, skews)
+colnames(datasummary) <- c("MEAN", "MIN","MEDIAN", "MAX", "IQR", "STD. DEV", "SKEW")
+datasummary <- round(datasummary, 2)
+
+pander(datasummary)
+
+
+#head(trainFull$Id)
+attach(trainFull)
+df <- data.frame(cbind(train_imp_var,Id))
+
+train_melted <- melt(df,id.vars="Id")
+theme_set(theme_bw(base_size = 16))
+ggplot(train_melted, aes(variable, value)) + geom_boxplot(aes(fill = variable), alpha = 0.75, show.legend = FALSE) + facet_wrap(~variable, scale="free") + scale_y_continuous('') + scale_x_discrete('', breaks = NULL) + ggtitle(" Predictor and Target Variables/n")+ theme(text=element_text(size=16))
+
+
+#X , Y relationship
+
+X <- train$GrLivArea
+Y <- train$SalePrice
+
+
+ggplot(train, aes(X, Y)) + geom_point(color="blue", alpha=.3) + labs(list(title="Relationship of Home Sale Price to GrLivArea", x = "X, GrLivArea", y = "Y, Sale Price")) + scale_y_continuous(labels = scales::dollar)+
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth(method=lm,   # Add linear regression line
+                se=FALSE)
+
+
+##building regresion model to see the error
+control.m <-
+  trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 3,
+  classProbs = F,
+  savePredictions = T,
+  allowParallel = TRUE
+  )
+
+modellm <-train(
+  train$SalePrice ~ train$GrLivArea,
+  data = train,
+  method = "lm",
+  importance=T,
+  trControl = control.m,
+  preProcess = c("center", "scale"),
+  tuneLength = 20)
+
+modellm
+
+```
+## **FROM THE r-SQUARED ERROR WE CAN SEE THAT THE GOODNESS OF FIT IS NOT VERY STRONG but it can be used if we engineer it with ther variables**
+
+
+#Provide a 95% CI for the difference in the mean of the variables.
+```{r}
+
+(t.test(train$GrLivArea,train$SalePrice))
+(cor.test(train$GrLivArea, train$SalePrice, method = "pearson" , conf.level = 0.99))
+```
+**The 95% confidence interval of the difference in mean sale price is between 175,785.3 and 183484.2.We see a very small p-value (< 0.5) which leads us to reject the null hypothesis. There is strong evidence of a mean price increase between lIVING ROOM AREA and sales price, which is indicative of a relationship between these two variables. ADDTIONALLY WE SEE THAT THERE IS A POSITIVE CO-RELATION OF 0.7086245**
+
+
+#Linear Algebra and Correlation.
+```{r}
+attach(train)
+XY<- data.frame(train$GrLivArea, train$SalePrice)
+
+(cormatrix <- cor(XY))
+
+(precmatrix <- solve(cormatrix))
+
+(cormatrix %*% precmatrix)
+(precmatrix %*% cormatrix)
+```
+
+###In the above process, we switched the order of multiplying the correlation and the precision matrix, both resulting in an identity matrix. This is proving that the correlation matrix is invertible, since $A^{-1}A = I$ and $AA^{-1} = I$###
+
+
+#Calculus-Based Probability & Statistics
+```{r}
+(min(train$GrLivArea))# we can see its positive that satisfy the requirement of variable >= 0
+
+expdf <- fitdistr(X, densfun="exponential")
+# get value of lambda from exponential distribution
+lambda <- expdf$estimate
+
+# expected value of lambda
+(rate <- 1 / lambda)
+
+# 1000 samples from expon. dist. using lambda
+expdf_samp <- rexp(1000, lambda)
+
+#Histogram sample
+hist(expdf_samp, col="blue", main="Histogram of Exponential Fit of X")
+
+#Histogram for Original Variable
+hist(X, col="blue", main="Histogram of X Variable", breaks=20)
+
+```
+
+###Using the exponential pdf, find the 5th and 95th percentiles using the cumulative distribution function (CDF).
+```{r}
+# 5 and 95 percentile of exponential pdf
+(qexp(c(.05, .95), rate = lambda))
+
+(quantile(X, c(.05, .95)))
+
+summary(expdf_samp)
+
+summary(X)
+
+
+#Residual plot to see if this varibale really needs a transformation
+res <- resid(modellm) 
+
+
+train$GrLivArea
+plot(train$GrLivArea,res,ylab="Residuals", xlab="GrLivArea",  main="Residual plot of lm model") 
+abline(0, 0) 
+
+
+#Boxplot
+boxplot(train$SalePrice)
+boxplot(train$GrLivArea)
+```
+##**The exponential distribution would not be a good fit in this case. We see that the center of the exponential distribution is shifted left as compared the empirical data. Additionally we see more spread in the exponential distribution. In future we can try other closed-form MLE like Normal, log-Normal, geometric, and Poisson. Also worth noting that from the the residual plot the the variable X not necessarily need any transformation**
+
+#PCA
+
+```{r}
+
+
+fin_data <- data.frame(GrLivArea,OverallQual,TotalBsmtSF,YearBuilt,X1stFlrSF,GarageCars,YearRemodAdd,MSSubClass,GarageArea,GarageCars,FullBath,TotRmsAbvGrd)
+fin_data <- as.data.frame(fin_data)
+pca <- PCA(fin_data, scale.unit=TRUE, ncp=5, graph=T)
+summary(pca)
+pca$eig
+
+
+```
+**From above " cumulative percentage of variance" we can see that first 4 variables, namely, GrLivArea,OverallQual,TotalBsmtSF,YearBuilt is of high importance**
+
+##model XGBOOST
+```{r}
+attach(train)
+train_final <- data.frame(GrLivArea,OverallQual,TotalBsmtSF,YearBuilt,SalePrice)
+
+test_final <- data.frame(test$GrLivArea,test$OverallQual,test$TotalBsmtSF,test$YearBuilt,test$SalePrice)
+colnames(test_final)<- c("GrLivArea" , "OverallQual", "TotalBsmtSF", "YearBuilt","SalePrice")
+
+head(fin_data)
+head(train_final)
+head(test_final)
+
+control.m <-
+  trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 3,
+  classProbs = F,
+  savePredictions = T,
+  allowParallel = TRUE
+  )
+
+
+
+
+modelrf <-train(train_final$SalePrice ~.,
+              data=train_final,
+              method="rf",
+              trControl=trainControl(method="cv",number=5),
+              prox=TRUE, importance = TRUE,
+              allowParallel=TRUE)
+
+
+pred_rf <- predict(modelrf, test_final)
+
+submission <- as.data.frame(cbind(test$Id, pred_rf))
+colnames(submission) <- c("Id", "SalePrice")
+
+
+
+write.csv(submission, file = "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-605/project/subm.csv", quote=FALSE, row.names=FALSE)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+head(test_final)
+# dim(train_final)
+# dim(test_final)
+#head(train_final)
+
+```
+
+
+#using XGBoost
+
+```{r,message=FALSE,warning=FALSE}
+# Tuning the parameters #
+cv.ctrl <- trainControl(method = "repeatedcv", repeats = 1,number = 3)
+
+xgb.grid <- expand.grid(nrounds = 500,
+                        max_depth = seq(6,10),
+                        eta = c(0.01,0.3, 1),
+                        gamma = c(0.0, 0.2, 1),
+                        colsample_bytree = c(0.5,0.8, 1),
+                        min_child_weight=seq(1,10)
+)
+
+xgb_tune <-train(train_final$SalePrice ~.,
+                 data=train_final,
+                 method="xgbTree",
+                 metric = "RMSE",
+                 trControl=cv.ctrl,
+                 tuneGrid=xgb.grid
+)
+
+
+
+prediction <- predict(xgb_tune, test_final)
+
+
+
+
+submission2 <- as.data.frame(cbind(test$Id, prediction))
+colnames(submission2) <- c("Id", "SalePrice")
+
+
+
+write.csv(submission2, file = "C:/Users/upalchow/Desktop/cuny_sps_fall2016/Data-605/project/subm2.csv", quote=FALSE, row.names=FALSE)
+
+
+```
+
+
+
+*Kaggle username Upal  score: 0.28327*
+
+
+
+
+
+
+
+
+
+
+
+
+
